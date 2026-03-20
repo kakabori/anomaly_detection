@@ -50,12 +50,12 @@ class Machine:
         self.diagnosis_config = diagnosis_config
 
     def get_health_status(self, snapshot: SensorSnapshot):
-        anomaly_score = run_anomaly_detection_rule(snapshot)
-        machine_status = run_diagnosis_rule(anomaly_score, self.diagnosis_config)
+        anomaly_score = run_anomaly_detection(snapshot)
+        machine_status = run_diagnosis(anomaly_score, self.diagnosis_config)
         return machine_status
 
 
-def run_anomaly_detection_rule(snapshot: SensorSnapshot):
+def run_anomaly_detection(snapshot: SensorSnapshot) -> list[float]:
     # 1時間ウィンドウに分割して特徴量を計算⇒異常度を算出する
     df = pd.DataFrame(snapshot.data, index=snapshot.time)
     hourly_features = df.resample("60min").agg(
@@ -65,7 +65,7 @@ def run_anomaly_detection_rule(snapshot: SensorSnapshot):
     return anomaly_score.tolist()
 
 
-def run_diagnosis_rule(anomaly_score: float, config: DiagnosisConfig):
+def run_diagnosis(anomaly_score: list[float], config: DiagnosisConfig) -> str:
     """異常度の24時間トレンドを基に状態分類"""
     if np.mean(anomaly_score) > config.anomaly_score_threshold:
         return "ANOMALY"
@@ -75,11 +75,11 @@ def run_diagnosis_rule(anomaly_score: float, config: DiagnosisConfig):
         return "NORMAL"
 
 
-def run_root_cause_analysis_rule(anomaly_score, machine_state):
+def run_root_cause_analysis(anomaly_score, machine_state):
     return
 
 
-def get_sensor_snapshot(machine: Machine):
+def get_sensor_snapshot(machine: Machine) -> SensorSnapshot:
     # machine_id = machine.machine_id
     time_duration_in_hours = machine.diagnosis_config.diagnosis_window_width
     np.random.seed(0)
@@ -94,13 +94,14 @@ def get_sensor_snapshot(machine: Machine):
     return SensorSnapshot(time, data, n_samples)
 
 
-def diagnose(machine_id: str):
+def diagnose(machine_id: str) -> str:
     config = DiagnosisConfig(diagnosis_window_width=24, anomaly_score_threshold=5)
     machine = Machine(machine_id=machine_id, diagnosis_config=config)
     snapshot = get_sensor_snapshot(machine)
-    anomaly_score = run_anomaly_detection_rule(snapshot)
-    machine_state = run_diagnosis_rule(anomaly_score, config)
+    anomaly_score = run_anomaly_detection(snapshot)
+    machine_state = run_diagnosis(anomaly_score, config)
+    return machine_state
 
 
 if __name__ == "__main__":
-    diagnose("001")
+    machine_state = diagnose("001")
