@@ -14,4 +14,4 @@ def test_length_mismatch_message():
         "temperature": [i - 5 for i in range(n_samples + 1)],
     }
     with pytest.raises(ValueError, match="長さが time と一致しません"):
-        SensorSnapshot(time=time, data=data, n_samples=n_samples)
+        SensorSnapshot(time=time, data=data)
