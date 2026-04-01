@@ -15,6 +15,9 @@ class AbstractRepository:
     def prepare_machine(self, machine_id: str) -> Machine:
         raise NotImplementedError
 
+    def list(self) -> list[str]:
+        raise NotImplementedError
+
 
 class MyDatabaseRepository(AbstractRepository):
     # 将来的にはrelational DBに繋がる
