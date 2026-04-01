@@ -10,7 +10,7 @@ def check_operating_condition(
     for i, value in enumerate(snapshot.data["temperature"]):
         if value < config.temperature_operating_range[0]:
             return DiagnosisUnavailable(
-                reason="sensor_out_of_range",
+                reason="temperature_out_of_range",
                 evidence=Evidence(
                     anomalous_features={
                         "temperature": f"temperature[{i}] is below operating range"
@@ -19,7 +19,7 @@ def check_operating_condition(
             )
         if value > config.temperature_operating_range[1]:
             return DiagnosisUnavailable(
-                reason="sensor_out_of_range",
+                reason="temperature_out_of_range",
                 evidence=Evidence(
                     anomalous_features={
                         "temperature": f"temperature[{i}] is above operating range"

@@ -1,7 +1,12 @@
 from adapters.repository import AbstractRepository
 from domain.anomaly_detection import run_anomaly_detection, run_feature_extraction
 from domain.diagnosis import run_diagnosis, run_root_cause_analysis
-from domain.model import DiagnosisResult, DiagnosisUnavailable
+from domain.model import (
+    DiagnosisResult,
+    DiagnosisUnavailable,
+    Evidence,
+    TemperatureOutOfRange,
+)
 from domain.operation import check_operating_condition
 
 
@@ -21,9 +26,11 @@ def diagnose(machine_id: str, repo: AbstractRepository) -> DiagnosisResult:
 
     try:
         snapshot = repo.get_sensor_snapshot(machine)
-    except:
-        unavailable = DiagnosisUnavailable()
-        return
+    except TemperatureOutOfRange as e:
+        return DiagnosisUnavailable(
+            reason="sensor_out_of_range",
+            evidence=Evidence(anomalous_features={"temperature": str(e)}),
+        )
 
     # そもそも機械の異常検知を実行できる状態かの判定
     unavailable = check_operating_condition(machine.diagnosis_config, snapshot)

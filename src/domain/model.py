@@ -1,5 +1,9 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
+
+
+class TemperatureOutOfRange(Exception):
+    pass
 
 
 @dataclass(frozen=True)
@@ -8,27 +12,26 @@ class SensorSnapshot:
     data: dict[str, list[float]]
 
     def __post_init__(self):
-        invalid_keys = [
-            key for key, values in self.data.items() if len(self.time) != len(values)
-        ]
 
-        # 不変式1
-        if invalid_keys:
-            raise ValueError(
-                f"data の以下のキーで長さが time と一致しません: {invalid_keys} "
-                f"(期待値: {len(self.time)})"
-            )
+        # 不変式1: 必須センサーがあるか
+        assert self.data.keys() == {"temperature", "vibration"}, "キーが不足"
 
-        # 不変式2: 必須センサーがあるか
-        if self.data.keys() != {"temperature", "vibration"}:
-            raise ValueError("キーが不足")
+        # 不変式2
+        assert len(self.time) == len(self.data["temperature"]), "長さ不一致"
+        assert len(self.time) == len(self.data["vibration"]), "長さ不一致"
+        # invalid_keys = [
+        #     key for key, values in self.data.items() if len(self.time) != len(values)
+        # ]
+        # if invalid_keys:
+        #     raise ValueError(
+        #         f"data の以下のキーで長さが time と一致しません: {invalid_keys} "
+        #         f"(期待値: {len(self.time)})"
+        #     )
 
         # 不変式3: 温度がセンサ仕様範囲内か
         for value in self.data["temperature"]:
-            if value > 150:
-                raise ValueError
-            if value < -50:
-                raise ValueError
+            if value < -50 or value > 150:
+                raise TemperatureOutOfRange("温度が仕様範囲外")
 
 
 @dataclass(frozen=True)
@@ -65,3 +68,22 @@ type DiagnosisResult = DiagnosisReport | DiagnosisUnavailable
 class Machine:
     machine_id: str
     diagnosis_config: DiagnosisConfig
+
+
+if __name__ == "__main__":
+    n_samples = 10
+    now = datetime.now()
+    time = [now + timedelta(seconds=i) for i in range(n_samples)]
+    data = {
+        "vibration": [float(i) for i in range(n_samples)],
+        "temperature": [i - 5.0 for i in range(n_samples)],
+    }
+    data["temperature"][0] = 150.1
+    try:
+        SensorSnapshot(time=time, data=data)
+    except TemperatureOutOfRange as e:
+        unavailable = DiagnosisUnavailable(
+            reason="sensor_out_of_range",
+            evidence=Evidence(anomalous_features={"temperature": str(e)}),
+        )
+        pass

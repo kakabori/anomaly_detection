@@ -49,10 +49,10 @@ class MyDatabaseRepository(AbstractRepository):
             mu = [20, 0]
             sigma = [0.1, 1]
             data = np.random.normal(loc=mu, scale=sigma, size=(n_samples, 2))
-            # 温度センサ異常を模擬（平均値を100℃上げる）
+            # 温度センサ異常を模擬（平均値を20℃上げる）
             idx0 = math.floor(n_samples * 12 / 24)
             idx1 = math.floor(n_samples * 13 / 24)
-            data[idx0:idx1, 0] = data[idx0:idx1, 0] + 100
+            data[idx0:idx1, 0] = data[idx0:idx1, 0] + 20
 
         data = {"temperature": data[:, 0].tolist(), "vibration": data[:, 1].tolist()}
         return SensorSnapshot(time, data)
@@ -60,11 +60,15 @@ class MyDatabaseRepository(AbstractRepository):
     def prepare_machine(self, machine_id: str) -> Machine:
         if machine_id == "001":
             config = DiagnosisConfig(
-                diagnosis_window_width=24, anomaly_score_threshold=5
+                diagnosis_window_width=24,
+                anomaly_score_threshold=5,
+                temperature_operating_range=(0, 60),
             )
         else:
             config = DiagnosisConfig(
-                diagnosis_window_width=12, anomaly_score_threshold=5
+                diagnosis_window_width=12,
+                anomaly_score_threshold=5,
+                temperature_operating_range=(0, 40),
             )
 
         machine = Machine(machine_id=machine_id, diagnosis_config=config)
