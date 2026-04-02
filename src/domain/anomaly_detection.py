@@ -1,6 +1,21 @@
+from typing import Protocol, cast
+
 import pandas as pd
 
 from domain.model import SensorSnapshot
+
+
+class FeatureExtractionRule(Protocol):
+    def extract(self, snapshot: SensorSnapshot) -> dict[str, list]:
+        df = pd.DataFrame(snapshot.data, index=snapshot.time)
+        hourly_features = (
+            df.resample("60min")
+            .agg({"temperature": "max", "vibration": "std"})
+            .rename(
+                columns={"temperature": "temperature_max", "vibration": "vibration_std"}
+            )
+        )
+        return cast(dict[str, list], hourly_features.to_dict(orient="list"))
 
 
 def run_feature_extraction(snapshot: SensorSnapshot) -> dict[str, list]:
@@ -12,7 +27,7 @@ def run_feature_extraction(snapshot: SensorSnapshot) -> dict[str, list]:
             columns={"temperature": "temperature_max", "vibration": "vibration_std"}
         )
     )
-    return hourly_features.to_dict(orient="list")
+    return cast(dict[str, list], hourly_features.to_dict(orient="list"))
 
 
 def run_anomaly_detection(snapshot: SensorSnapshot) -> list[float]:

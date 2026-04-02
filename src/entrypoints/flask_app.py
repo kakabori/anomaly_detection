@@ -14,11 +14,16 @@ def diagnose_endpoint():
     repo = repository.MyDatabaseRepository()
     machine_id = request.json["machineid"]
     try:
-        report = workflow.diagnose(machine_id, repo)
+        result = workflow.diagnose(machine_id, repo)
     except workflow.InvalidMachineId as e:
-        return jsonify({"message": str(e)}), 400
+        return jsonify({"error": str(e)}), 400
 
-    return jsonify(asdict(report)), 201
+    if isinstance(result, DiagnosisReport):
+        return jsonify({"status": "OK", "result": asdict(result)}), 200
+    elif isinstance(result, DiagnosisUnavailable):
+        return jsonify({"status": "FAIL", "error": asdict(result)}), 200
+    else:
+        return jsonify({"error": "Internal Server Error"}), 500
 
 
 if __name__ == "__main__":
