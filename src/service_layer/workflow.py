@@ -1,13 +1,13 @@
 from adapters.repository import AbstractRepository
 from domain.anomaly_detection import run_anomaly_detection, run_feature_extraction
 from domain.diagnosis import run_diagnosis, run_root_cause_analysis
+from domain.diagnosis_precondition import (
+    check_operating_condition,
+    check_sensor_validity,
+)
 from domain.model import (
     DiagnosisResult,
-    DiagnosisUnavailable,
-    Evidence,
-    TemperatureOutOfRange,
 )
-from domain.operation import check_operating_condition
 
 
 class InvalidMachineId(Exception):
@@ -24,18 +24,17 @@ def diagnose(machine_id: str, repo: AbstractRepository) -> DiagnosisResult:
         raise InvalidMachineId(f"Invalid machine id {machine_id}")
     machine = repo.prepare_machine(machine_id)
 
-    try:
-        snapshot = repo.get_sensor_snapshot(machine)
-    except TemperatureOutOfRange as e:
-        return DiagnosisUnavailable(
-            reason="sensor_out_of_range",
-            evidence=Evidence(anomalous_features={"temperature": str(e)}),
-        )
+    snapshot = repo.get_sensor_snapshot(machine)
+
+    # センサー故障チェック
+    sensor_check = check_sensor_validity(snapshot)
+    if sensor_check:
+        return sensor_check
 
     # そもそも機械の異常検知を実行できる状態かの判定
-    unavailable = check_operating_condition(machine.diagnosis_config, snapshot)
-    if unavailable:
-        return unavailable
+    condition_check = check_operating_condition(machine.diagnosis_config, snapshot)
+    if condition_check:
+        return condition_check
 
     feature = run_feature_extraction(snapshot)
     anomaly_score = run_anomaly_detection(snapshot)
