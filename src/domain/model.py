@@ -9,12 +9,19 @@ class SensorSnapshot:
     data: dict[str, list[float]]
 
     def __post_init__(self):
-        # 不変式1: 必須センサーがあるか
-        assert self.data.keys() == {"temperature", "vibration"}, "キーが不足"
+        # 不変式: 時系列が単調増加か
+        if any(self.time[i] > self.time[i + 1] for i in range(len(self.time) - 1)):
+            raise ValueError("単調増加でない")
 
-        # 不変式2
-        assert len(self.time) == len(self.data["temperature"]), "長さ不一致"
-        assert len(self.time) == len(self.data["vibration"]), "長さ不一致"
+        # 不変式: 必須センサーがあるか
+        if self.data.keys() != {"temperature", "vibration"}:
+            raise ValueError("キーが不足")
+
+        # 不変式: 長さの一致
+        if len(self.time) != len(self.data["temperature"]):
+            raise ValueError("長さ不一致")
+        if len(self.time) != len(self.data["vibration"]):
+            raise ValueError("長さ不一致")
 
 
 @dataclass(frozen=True)

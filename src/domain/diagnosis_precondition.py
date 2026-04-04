@@ -1,14 +1,24 @@
+import math
+
 from domain.model import DiagnosisConfig, DiagnosisUnavailable, Evidence, SensorSnapshot
 
 
 def check_sensor_validity(snapshot: SensorSnapshot) -> DiagnosisUnavailable | None:
+    # 欠損率の上限
+    for sensor_name, sensor_value in snapshot.data.items():
+        ratio = sum(math.isnan(v) for v in sensor_value) / len(sensor_value)
+        if ratio > 0.2:
+            return DiagnosisUnavailable(
+                reason="missing_rate_too_high",
+                evidence=Evidence({sensor_name: "欠損率が上限を超えている"}),
+            )
+
+    # 温度のハードウェア仕様範囲
     for value in snapshot.data["temperature"]:
         if value < -50 or value > 150:
             return DiagnosisUnavailable(
                 reason="sensor_out_of_range",
-                evidence=Evidence(
-                    anomalous_features={"temperature": "温度がセンサー仕様範囲外"}
-                ),
+                evidence=Evidence({"temperature": "温度がセンサー仕様範囲外"}),
             )
 
 
