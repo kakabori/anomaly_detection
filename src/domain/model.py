@@ -4,29 +4,36 @@ from typing import Literal
 
 
 @dataclass(frozen=True)
+class SensorChannel:
+    name: str
+    sensor_type: Literal["vibration", "temperature"]
+    sample_rate: float  # 平均サンプリングレート [Hz]
+    location: str
+
+
+@dataclass(frozen=True)
 class SensorSnapshot:
     time: list[datetime]
-    data: dict[str, list[float]]
+    data: list[float]
+    sensor_channel: SensorChannel
 
     def __post_init__(self):
         # 不変式: 時系列が単調増加か
         if any(self.time[i] > self.time[i + 1] for i in range(len(self.time) - 1)):
             raise ValueError("単調増加でない")
 
-        # 不変式: 必須センサーがあるか
-        if self.data.keys() != {"temperature", "vibration"}:
-            raise ValueError("キーが不足")
-
         # 不変式: 長さの一致
-        if len(self.time) != len(self.data["temperature"]):
+        if len(self.time) != len(self.data):
             raise ValueError("長さ不一致")
-        if len(self.time) != len(self.data["vibration"]):
-            raise ValueError("長さ不一致")
+
+    @property
+    def num_samples(self):
+        return len(self.time)
 
 
 @dataclass(frozen=True)
 class DiagnosisConfig:
-    diagnosis_window_width: float  # [hours]
+    diagnosis_window_width: timedelta
     anomaly_score_threshold: float
     temperature_operating_range: tuple[float, float]  # ℃
 
@@ -58,16 +65,27 @@ type DiagnosisResult = DiagnosisReport | DiagnosisUnavailable
 class Machine:
     machine_id: str
     diagnosis_config: DiagnosisConfig
+    sensor_channels: list[SensorChannel]
 
 
-if __name__ == "__main__":
-    n_samples = 10
-    now = datetime.now()
-    time = [now + timedelta(seconds=i) for i in range(n_samples)]
-    data = {
-        "vibration": [float(i) for i in range(n_samples)],
-        "temperature": [i - 5.0 for i in range(n_samples)],
-    }
-    data["temperature"][0] = 150.1
-    snapshot = SensorSnapshot(time=time, data=data)
-    print(snapshot)
+@dataclass(frozen=True)
+class DiagnosisRecord:
+    date: datetime  # windowの代表的なタイムスタンプ
+    machine_id: str
+    features: dict[str, dict[str, float]]  # feature_name: fature_value pair
+    # {"vibration_ch1": {"RMS": 0.21, "Kurtosis": 3.2, ...},
+    #  "temperature":   {"mean": 42.1, "std": 0.3, ...}}
+    anomaly_score: float  # featuresから算出された異常度
+
+
+# if __name__ == "__main__":
+#     n_samples = 10
+#     now = datetime.now()
+#     time = [now + timedelta(seconds=i) for i in range(n_samples)]
+#     data = {
+#         "vibration": [float(i) for i in range(n_samples)],
+#         "temperature": [i - 5.0 for i in range(n_samples)],
+#     }
+#     data["temperature"][0] = 150.1
+#     snapshot = SensorSnapshot(time=time, data=data)
+#     print(snapshot)

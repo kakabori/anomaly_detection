@@ -3,7 +3,9 @@ import math
 from domain.model import DiagnosisConfig, DiagnosisUnavailable, Evidence, SensorSnapshot
 
 
-def check_sensor_validity(snapshot: SensorSnapshot) -> DiagnosisUnavailable | None:
+def check_sensor_validity(
+    snapshot: list[SensorSnapshot],
+) -> DiagnosisUnavailable | None:
     # 欠損率の上限
     for sensor_name, sensor_value in snapshot.data.items():
         ratio = sum(math.isnan(v) for v in sensor_value) / len(sensor_value)
@@ -23,7 +25,7 @@ def check_sensor_validity(snapshot: SensorSnapshot) -> DiagnosisUnavailable | No
 
 
 def check_operating_condition(
-    config: DiagnosisConfig, snapshot: SensorSnapshot
+    config: DiagnosisConfig, snapshot: list[SensorSnapshot]
 ) -> DiagnosisUnavailable | None:
     # 例えば、temperatureのセンサー値が上限を超えている場合は異常検知の実行すらできないといった条件を定義する
     for i, value in enumerate(snapshot.data["temperature"]):

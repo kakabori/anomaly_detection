@@ -3,13 +3,19 @@ from typing import Literal
 
 import numpy as np
 
-from domain.model import DiagnosisReport, Evidence, Machine
+from domain.model import DiagnosisRecord, DiagnosisReport, Evidence, Machine
 
 
 def run_diagnosis(
-    anomaly_score: list[float], machine: Machine
+    records: list[DiagnosisRecord], machine: Machine
 ) -> Literal["ANOMALY", "WARNING", "NORMAL"]:
     """異常度の24時間トレンドを基に状態分類"""
+
+    # 診断レコードから異常度のトレンドを構築
+    anomaly_score = []
+    for r in records:
+        anomaly_score.append(r.anomaly_score)
+
     threshold = machine.diagnosis_config.anomaly_score_threshold
     if np.mean(anomaly_score) > threshold:
         return "ANOMALY"

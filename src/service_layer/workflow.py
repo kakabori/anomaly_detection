@@ -1,13 +1,13 @@
-from adapters.repository import AbstractRepository
-from domain.anomaly_detection import run_anomaly_detection
+from datetime import timedelta
+
+from adapters.repository import AbstractRecordRepository, AbstractSensorRepository
 from domain.diagnosis import run_diagnosis, run_root_cause_analysis
 from domain.diagnosis_precondition import (
     check_operating_condition,
     check_sensor_validity,
 )
-from domain.model import (
-    DiagnosisResult,
-)
+from domain.model import DiagnosisResult
+from domain.ports import AnomalyDetector
 
 
 class InvalidMachineId(Exception):
@@ -19,33 +19,51 @@ def is_valid_machine_id(machine_id, machine_id_list):
 
 
 def diagnose(
-    machine_id: str, repo: AbstractRepository, window_width: str = "60min"
+    machine_id: str,
+    sensor_repo: AbstractSensorRepository,
+    record_repo: AbstractRecordRepository,
+    detector: AnomalyDetector,
+    window_width: timedelta,
 ) -> DiagnosisResult:
+    # window_widthは1Recordの長さ
+    # 現実的には特徴量抽出ウィンドウ幅はanomaly_detectionの精度に影響するので
+    # anomaly_detectionのpolicyの管理下になると思われる
+    #
+    # diagnosis_window_width は異常スコアの集まりのサイズを決める
+    # 集まりの統計量から正常/異常の判定結果を求めるので、判定結果のノイズに影響する
+    # 判定結果はトレンド分析のトリガーになるので、この窓が短すぎるとfalse positiveな
+    # トレンド分析イベントが頻発しかねないことには留意必要
+
     machine_id_list = repo.list()
     if not is_valid_machine_id(machine_id, machine_id_list):
         raise InvalidMachineId(f"Invalid machine id {machine_id}")
     machine = repo.prepare_machine(machine_id)
 
-    snapshot = repo.get_sensor_snapshot(machine)
+    snapshots = repo.get_sensor_snapshot(machine)
 
     # センサー故障チェック
-    sensor_check = check_sensor_validity(snapshot)
+    sensor_check = check_sensor_validity(snapshots)
     if sensor_check:
         return sensor_check
 
     # そもそも機械の異常検知を実行できる状態かの判定
-    condition_check = check_operating_condition(machine.diagnosis_config, snapshot)
+    condition_check = check_operating_condition(machine.diagnosis_config, snapshots)
     if condition_check:
         return condition_check
 
-    # データ品質評価
+    # 特徴量抽出→異常兆候スコアリング→診断レコード生成
+    diagnosis_records = run_anomaly_detection(
+        snapshots, window_width, machine.machine_id
+    )
 
-    # 特徴量抽出→異常兆候スコアリング
-    anomaly_score, feature = run_anomaly_detection(snapshot, window_width)
+    # 異常判定
+    machine_status = run_diagnosis(diagnosis_records, machine)
 
-    # 原因候補生成
-    machine_status = run_diagnosis(anomaly_score, machine)
+    # DBに結果を格納
+    # save(diagnosis_records, machine_status)
 
-    # 根拠付きレポート生成
-    report = run_root_cause_analysis(machine_status, feature, anomaly_score)
+    # ---- ここから Step 2 ----
+    # トレンド分析
+
+    report = run_root_cause_analysis(machine_status, features, anomaly_scores)
     return report
