@@ -1,5 +1,5 @@
 from adapters.repository import AbstractRepository
-from domain.anomaly_detection import run_anomaly_detection, run_feature_extraction
+from domain.anomaly_detection import run_anomaly_detection
 from domain.diagnosis import run_diagnosis, run_root_cause_analysis
 from domain.diagnosis_precondition import (
     check_operating_condition,
@@ -18,7 +18,9 @@ def is_valid_machine_id(machine_id, machine_id_list):
     return machine_id in machine_id_list
 
 
-def diagnose(machine_id: str, repo: AbstractRepository) -> DiagnosisResult:
+def diagnose(
+    machine_id: str, repo: AbstractRepository, window_width: str = "60min"
+) -> DiagnosisResult:
     machine_id_list = repo.list()
     if not is_valid_machine_id(machine_id, machine_id_list):
         raise InvalidMachineId(f"Invalid machine id {machine_id}")
@@ -36,8 +38,14 @@ def diagnose(machine_id: str, repo: AbstractRepository) -> DiagnosisResult:
     if condition_check:
         return condition_check
 
-    feature = run_feature_extraction(snapshot)
-    anomaly_score = run_anomaly_detection(snapshot)
+    # データ品質評価
+
+    # 特徴量抽出→異常兆候スコアリング
+    anomaly_score, feature = run_anomaly_detection(snapshot, window_width)
+
+    # 原因候補生成
     machine_status = run_diagnosis(anomaly_score, machine)
+
+    # 根拠付きレポート生成
     report = run_root_cause_analysis(machine_status, feature, anomaly_score)
     return report

@@ -32,7 +32,7 @@ def check_operating_condition(
                 reason="temperature_out_of_range",
                 evidence=Evidence(
                     anomalous_features={
-                        "temperature": f"temperature[{i}] is below operating range"
+                        "temperature": f"operating temperature[{i}] is below operating range"
                     }
                 ),
             )
@@ -41,7 +41,7 @@ def check_operating_condition(
                 reason="temperature_out_of_range",
                 evidence=Evidence(
                     anomalous_features={
-                        "temperature": f"temperature[{i}] is above operating range"
+                        "temperature": f"operating temperature[{i}] is above operating range"
                     }
                 ),
             )
