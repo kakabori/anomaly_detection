@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal
 
@@ -33,7 +33,7 @@ class SensorSnapshot:
 
 @dataclass(frozen=True)
 class DiagnosisConfig:
-    diagnosis_window_width: timedelta
+    diagnosis_window_width: timedelta  # 診断ウィンドウ（特徴抽出ウィンドウとは異なる）
     anomaly_score_threshold: float
     temperature_operating_range: tuple[float, float]  # ℃
 
@@ -46,9 +46,9 @@ class Evidence:
 @dataclass(frozen=True)
 class DiagnosisReport:
     machine_status: Literal["ANOMALY", "WARNING", "NORMAL"]
-    root_cause_candidates: dict[str, Evidence] = field(default_factory=dict)
-    data_quality: str = "OK"
-    next_action: str = "None"
+    feature_trend: Trend
+    diagnosis_date: datetime
+    anomalous_features: dict[str, str]  # feature_name, description
 
 
 @dataclass(frozen=True)
@@ -73,6 +73,13 @@ class DiagnosisRecord:
     machine_id: str
     features: dict[str, float]  # {"v1_rms": 0.21, "v1_kurtosis": 3.2, ...}
     anomaly_score: float  # featuresから算出された異常度
+
+
+@dataclass(frozen=True)
+class Trend:
+    dates: list[datetime]
+    anomaly_scores: list[float]
+    features: dict[str, list[float]]  # {"v1_rms": [0.21, 0.22], ...}
 
 
 # if __name__ == "__main__":

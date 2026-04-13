@@ -11,10 +11,12 @@ app = Flask(__name__)
 
 @app.route("/diagnose", methods=["POST"])
 def diagnose_endpoint():
-    repo = repository.MyDatabaseRepository()
     machine_id = request.json["machineid"]
+    sensor_repo = repository.SensorDBRepository()
+    record_repo = repository.RecordDBRepository()
+
     try:
-        result = workflow.diagnose(machine_id, repo)
+        result = workflow.diagnose(machine_id, sensor_repo, record_repo)
     except workflow.InvalidMachineId as e:
         return jsonify({"error": str(e)}), 400
 
@@ -27,23 +29,26 @@ def diagnose_endpoint():
 
 
 if __name__ == "__main__":
-    repo = repository.MyDatabaseRepository()
+    sensor_repo = repository.SensorDBRepository()
+    record_repo = repository.RecordDBRepository()
     machine_id = "001"
-    result = workflow.diagnose(machine_id, repo)
+    result = workflow.diagnose(machine_id, sensor_repo, record_repo)
     print(f"Diagnosing machine {machine_id}...")
     if isinstance(result, DiagnosisReport):
         print(result.machine_status)
-        print(result.next_action)
+        for key, value in result.anomalous_features:
+            print(f"{key}: {value}")
     elif isinstance(result, DiagnosisUnavailable):
         print(result.reason)
         print(result.evidence)
 
     machine_id = "002"
-    result = workflow.diagnose(machine_id, repo)
+    result = workflow.diagnose(machine_id, sensor_repo, record_repo)
     print(f"Diagnosing machine {machine_id}...")
     if isinstance(result, DiagnosisReport):
         print(result.machine_status)
-        print(result.next_action)
+        for key, value in result.anomalous_features:
+            print(f"{key}: {value}")
     elif isinstance(result, DiagnosisUnavailable):
         print(result.reason)
         print(result.evidence)

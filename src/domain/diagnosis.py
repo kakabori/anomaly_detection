@@ -1,9 +1,29 @@
 # domain service
+from collections import defaultdict
+from datetime import datetime
 from typing import Literal
 
 import numpy as np
 
-from domain.model import DiagnosisRecord, DiagnosisReport, Evidence, Machine
+from domain.model import DiagnosisRecord, DiagnosisReport, Machine, Trend
+
+
+def linear_fit(times: list[datetime], values: list[float]):
+    """
+    時系列データをlinear fitして傾きと切片を返す。
+
+    Returns:
+        slope    : 傾き（1秒あたりの変化量）
+        intercept: 切片（epoch秒=0 における値、実用上は base_time 基準）
+        base_time: 時刻の基準点（times[0]）
+    """
+    base_time = times[0]
+    # datetime → 秒数（float）に変換
+    t = np.array([(dt - base_time).total_seconds() for dt in times])
+    y = np.array(values)
+
+    slope, intercept = np.polyfit(t, y, 1)
+    return slope, intercept, base_time
 
 
 def run_diagnosis(
@@ -25,18 +45,39 @@ def run_diagnosis(
         return "NORMAL"
 
 
-def run_root_cause_analysis(
+def create_diagnosis_report(
     machine_status: Literal["ANOMALY", "WARNING", "NORMAL"],
-    hourly_features: dict[str, list],
-    anomaly_score: list[float],
+    records: list[DiagnosisRecord],
+    diagnosis_date: datetime,
 ):
+    """トレンド分析の結果を診断レポートとして返す"""
+    features = defaultdict(list)
+    scores = []
+    dates = []
+    for r in records:
+        dates.append(r.date)
+        scores.append(r.anomaly_score)
+        for key, value in r.features.items():
+            features[key].append(value)
+    trend_data = Trend(dates=dates, anomaly_scores=scores, features=features)
 
-    evidence = Evidence({"temperature_max": "temperature_max is above threshold"})
-    report = DiagnosisReport(
-        anomaly_score=anomaly_score,
+    # TODO: この閾値はmachine_configに紐づける
+    threshold = 10
+    analysis_result = {}
+    for name, values in features.items():
+        slope = abs(linear_fit(dates, values)[0])
+        if slope > threshold:
+            analysis_result[name] = slope
+
+    if analysis_result:
+        top3 = sorted(analysis_result.items(), key=lambda x: x[1], reverse=True)[:3]
+        top3 = dict(top3)
+    else:
+        top3 = {}
+
+    return DiagnosisReport(
         machine_status=machine_status,
-        root_cause_candidates={"broken sensor": evidence},
-        data_quality="OK",
-        next_action="Check sensor",
+        feature_trend=trend_data,
+        diagnosis_date=diagnosis_date,
+        anomalous_features=top3,
     )
-    return report

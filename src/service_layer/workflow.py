@@ -1,14 +1,14 @@
 from datetime import datetime, timedelta
 
+import adapters.anomaly_detection as anomaly
 from adapters.repository import AbstractRecordRepository, AbstractSensorRepository
 from domain.detection import run_anomaly_detection
-from domain.diagnosis import run_diagnosis, run_root_cause_analysis
+from domain.diagnosis import create_diagnosis_report, run_diagnosis
 from domain.diagnosis_precondition import (
     check_operating_condition,
     check_sensor_validity,
 )
-from domain.model import DiagnosisReport, DiagnosisResult
-from domain.ports import AnomalyDetector, FeatureExtractor
+from domain.model import DiagnosisResult
 
 
 class InvalidMachineId(Exception):
@@ -23,8 +23,6 @@ def diagnose(
     machine_id: str,
     sensor_repo: AbstractSensorRepository,
     record_repo: AbstractRecordRepository,
-    detector: AnomalyDetector,
-    extractor: FeatureExtractor,
 ) -> DiagnosisResult:
     # window_widthは1Recordの長さ
     # 現実的には特徴量抽出ウィンドウ幅はanomaly_detectionの精度に影響するので
@@ -40,6 +38,10 @@ def diagnose(
         raise InvalidMachineId(f"Invalid machine id {machine_id}")
     machine = sensor_repo.prepare_machine(machine_id)
 
+    # TODO: machineと各オブジェクトを関連付けるrepositoryを実装する
+    detector = anomaly.PandasDetector()
+    extractor = anomaly.PandasExtractor(timedelta(hours=1))
+
     snapshots = sensor_repo.get_sensor_snapshot(machine)
 
     # センサー故障チェック
@@ -53,7 +55,7 @@ def diagnose(
         return condition_check
 
     # 特徴量抽出→異常兆候スコアリング→診断レコード生成
-    diagnosis_records = run_anomaly_detection(
+    latest_records = run_anomaly_detection(
         machine.machine_id,
         detector,
         extractor,
@@ -61,19 +63,30 @@ def diagnose(
     )
 
     # 異常判定
-    machine_status = run_diagnosis(diagnosis_records, machine)
+    machine_status = run_diagnosis(latest_records, machine)
 
     # DBに結果を格納
-    # save(diagnosis_records, machine_status)
-
-    if machine_status == "NORMAL":
-        return DiagnosisReport(machine_status=machine_status)
+    record_repo.push_record(latest_records)
 
     # ---- ここから Step 2 ----
-    # トレンド分析: 過去数か月分のDiagnosisRecordを取ってくる
-    t1 = datetime.now()
-    t0 = t1 - timedelta(days=90)
-    trend = record_repo.retrieve_record(machine, (t0, t1))
+    # 過去数か月分のDiagnosisRecordを取ってくる
+    now = datetime.now()
+    t0 = now - timedelta(days=90)
+    diagnosis_records = record_repo.retrieve_record(machine, (t0, now))
 
-    report = run_root_cause_analysis(trend)
+    report = create_diagnosis_report(machine_status, diagnosis_records, now)
     return report
+
+
+# if __name__ == "__main__":
+#     machine_id = "001"
+#     sensor_repo =
+
+
+#     def diagnose(
+#     machine_id: str,
+#     sensor_repo: AbstractSensorRepository,
+#     record_repo: AbstractRecordRepository,
+#     detector: AnomalyDetector,
+#     extractor: FeatureExtractor,
+# )
