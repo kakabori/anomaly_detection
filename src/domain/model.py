@@ -45,7 +45,6 @@ class Evidence:
 
 @dataclass(frozen=True)
 class DiagnosisReport:
-    anomaly_score: list[float]
     machine_status: Literal["ANOMALY", "WARNING", "NORMAL"]
     root_cause_candidates: dict[str, Evidence] = field(default_factory=dict)
     data_quality: str = "OK"
@@ -70,11 +69,9 @@ class Machine:
 
 @dataclass(frozen=True)
 class DiagnosisRecord:
-    date: datetime  # windowの代表的なタイムスタンプ
+    date: datetime  # windowの最初のタイムスタンプ
     machine_id: str
-    features: dict[str, dict[str, float]]  # feature_name: fature_value pair
-    # {"vibration_ch1": {"RMS": 0.21, "Kurtosis": 3.2, ...},
-    #  "temperature":   {"mean": 42.1, "std": 0.3, ...}}
+    features: dict[str, float]  # {"v1_rms": 0.21, "v1_kurtosis": 3.2, ...}
     anomaly_score: float  # featuresから算出された異常度
 
 

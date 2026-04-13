@@ -30,12 +30,6 @@ def run_root_cause_analysis(
     hourly_features: dict[str, list],
     anomaly_score: list[float],
 ):
-    if machine_status == "NORMAL":
-        report = DiagnosisReport(
-            anomaly_score=anomaly_score,
-            machine_status=machine_status,
-        )
-        return report
 
     evidence = Evidence({"temperature_max": "temperature_max is above threshold"})
     report = DiagnosisReport(
