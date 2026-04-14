@@ -3,11 +3,23 @@
 # Phase 2以降でFeatureExtractor Protocolとの責務分担を再検討する
 
 from datetime import datetime, timedelta
+from typing import Protocol
 
 import numpy as np
 import pandas as pd
 
 from domain.model import SensorChannel, SensorSnapshot
+
+
+class AnomalyModel(Protocol):
+    def fit(self, X: np.ndarray) -> "AnomalyModel": ...
+    def predict(self, X: np.ndarray) -> np.ndarray: ...
+    def score_samples(self, X: np.ndarray) -> np.ndarray: ...
+
+
+class AnomalyDetector(Protocol):
+    def predict(self, X: np.ndarray) -> np.ndarray: ...
+    def score_samples(self, X: np.ndarray) -> np.ndarray: ...
 
 
 # カスタム統計量の定義
@@ -68,8 +80,8 @@ def energy(x):
 
 
 class PandasExtractor:
-    def __init__(self, extraction_window_width: timedelta):
-        self.window_width = extraction_window_width
+    def __init__(self, window: timedelta):
+        self.window = window
 
     def run(
         self, sensor_snapshots: list[SensorSnapshot]
@@ -102,7 +114,7 @@ class PandasExtractor:
 
     def extract(self, snapshot: SensorSnapshot) -> pd.DataFrame:
         df = pd.DataFrame(snapshot.data, index=snapshot.time, columns=["value"])
-        freq = pd.Timedelta(self.window_width)
+        freq = pd.Timedelta(self.window)
 
         if snapshot.sensor_channel.sensor_type == "temperature":
             # temperature sensor
@@ -141,6 +153,34 @@ class PandasDetector:
         anomaly_score = pd.concat([score_on_temp, score_on_vib], axis=1).mean(axis=1)
 
         return anomaly_score.to_list()
+
+
+class AnomalyDetectorWithFeatures:
+    def __init__(self, extractor: MultiSensorExtractor, model: AnomalyModel):
+        self.extractor = extractor
+        self.model = model
+
+    def fit(
+        self, sensor_snapshots: list[SensorSnapshot]
+    ) -> "AnomalyDetectorWithFeatures":
+        features = self.extractor.run(sensor_snapshots)  # (n_samples, m_features)
+        self.model.fit(features)  # 異常検知モデルを学習
+        return self
+
+    def predict_full(self, sensor_snapshots: list[SensorSnapshot]) -> dict:
+        features = self.extractor.run(sensor_snapshots)
+        return {
+            "labels": self.model.predict(features),
+            "scores": self.model.score_samples(features),
+            "features": features,
+        }
+
+    # AnomalyDetector Protocolに合わせるメソッド
+    def predict(self, X_raw: np.ndarray) -> np.ndarray:
+        return self.predict_full(X_raw)["labels"]
+
+    def score_samples(self, X_raw: np.ndarray) -> np.ndarray:
+        return self.predict_full(X_raw)["scores"]
 
 
 if __name__ == "__main__":
